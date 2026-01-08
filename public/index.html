@@ -4,232 +4,36 @@
 <meta charset="UTF-8">
 <title>BINGO TV</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: radial-gradient(circle at top, #ffd000, #ff7a00);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  color: white;
-}
-
-h1 { margin: 10px 0; }
-
-#number {
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  background: white;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 120px;
-  font-weight: bold;
-  box-shadow: 0 0 30px rgba(0,0,0,0.4);
-}
-
-.animate { animation: pop 0.6s ease; }
-@keyframes pop {
-  0% { transform: scale(0); }
-  70% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-
-.controls {
-  margin: 20px 0;
-  display: flex;
-  gap: 15px;
-}
-
-button {
-  padding: 14px 26px;
-  font-size: 18px;
-  border: none;
-  border-radius: 12px;
-  background: #222;
-  color: white;
-  cursor: pointer;
-}
-
-button:disabled { opacity: 0.5; }
-
-#drawn {
-  margin-top: 20px;
-  width: 90%;
-  max-width: 900px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
-
-.drawn-number {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: white;
-  color: black;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ticket-box {
-  margin-top: 30px;
-  background: rgba(0,0,0,0.25);
-  padding: 15px;
-  border-radius: 12px;
-  text-align: center;
-}
-
-.ticket-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.cell {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: white;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.cell.marked {
-  background: #ff4444;
-  color: white;
-}
-
-.bingo-btn {
-  margin-top: 15px;
-  background: #00c853;
-  color: black;
-  font-weight: bold;
-}
+body { font-family:Arial; display:flex; flex-direction:column; align-items:center; padding:20px; background:#ffd000; }
+#number { width:180px; height:180px; border-radius:50%; background:white; font-size:100px; display:flex; align-items:center; justify-content:center; margin:10px; }
+.drawn { display:flex; flex-wrap:wrap; gap:5px; max-width:500px; }
+.drawn div { width:40px; height:40px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+#winner { margin-top:20px; font-size:24px; color:#ff0000; }
 </style>
 </head>
-
 <body>
-
-<h1>BINGO ΚΛΗΡΩΣΗ</h1>
-
+<h1>BINGO TV</h1>
 <div id="number">–</div>
-
-<div class="controls">
-  <button id="manualBtn">MANUAL</button>
-  <button id="autoBtn">AUTO</button>
-  <button id="stopBtn" disabled>STOP</button>
-</div>
-
-<div id="drawn"></div>
-
-<div class="ticket-box">
-  <h3>Κουπόνι Παίκτη</h3>
-  <button id="createTicket">ΝΕΟ ΚΟΥΠΟΝΙ</button>
-  <div id="ticketId"></div>
-
-  <div class="ticket-grid" id="ticket"></div>
-
-  <!-- ΤΟ BINGO ΕΙΝΑΙ ΜΟΝΟ ΕΔΩ -->
-  <button class="bingo-btn" id="bingoBtn" disabled>🎉 BINGO</button>
-</div>
+<div class="drawn" id="drawn"></div>
+<div id="winner"></div>
 
 <script>
-let interval = null;
-let running = false;
-
-const numberDiv = document.getElementById("number");
-const drawnDiv = document.getElementById("drawn");
-const manualBtn = document.getElementById("manualBtn");
-const autoBtn = document.getElementById("autoBtn");
-const stopBtn = document.getElementById("stopBtn");
-const ticketDiv = document.getElementById("ticket");
-const ticketIdDiv = document.getElementById("ticketId");
-const bingoBtn = document.getElementById("bingoBtn");
-
-// ===== ΚΛΗΡΩΣΗ ΑΠΟ SERVER =====
-async function drawFromServer() {
+async function fetchDrawn() {
   const res = await fetch("/api/draw");
   const data = await res.json();
-  if (data.done) {
-    stopAuto();
-    return;
-  }
-
-  numberDiv.textContent = data.number;
-  numberDiv.classList.remove("animate");
-  void numberDiv.offsetWidth;
-  numberDiv.classList.add("animate");
-
+  const drawnDiv = document.getElementById("drawn");
   drawnDiv.innerHTML = "";
-  data.drawnNumbers.forEach(n => {
-    const d = document.createElement("div");
-    d.className = "drawn-number";
-    d.textContent = n;
-    drawnDiv.appendChild(d);
+  let last = "–";
+  data.drawnNumbers.forEach(n=>{
+    const d = document.createElement("div"); d.textContent=n; drawnDiv.appendChild(d);
+    last = n;
   });
+  document.getElementById("number").textContent = last;
 }
+setInterval(fetchDrawn,2000);
 
-manualBtn.onclick = () => {
-  if (!running) drawFromServer();
-};
-
-autoBtn.onclick = () => {
-  if (running) return;
-  running = true;
-  autoBtn.disabled = true;
-  manualBtn.disabled = true;
-  stopBtn.disabled = false;
-  drawFromServer();
-  interval = setInterval(drawFromServer, 5000);
-};
-
-function stopAuto() {
-  running = false;
-  clearInterval(interval);
-  autoBtn.disabled = false;
-  manualBtn.disabled = false;
-  stopBtn.disabled = true;
-}
-stopBtn.onclick = stopAuto;
-
-// ===== ΚΟΥΠΟΝΙ =====
-document.getElementById("createTicket").onclick = async () => {
-  const res = await fetch("/api/ticket", { method: "POST" });
-  const data = await res.json();
-
-  ticketIdDiv.innerHTML = "<b>ID:</b> " + data.ticketId;
-  ticketDiv.innerHTML = "";
-  bingoBtn.disabled = false;
-
-  data.numbers.forEach(n => {
-    const c = document.createElement("div");
-    c.className = "cell";
-    c.textContent = n;
-    c.onclick = () => c.classList.toggle("marked");
-    ticketDiv.appendChild(c);
-  });
-};
-
-// ===== BINGO BUTTON (ΣΤΑΜΑΤΑ ΚΛΗΡΩΣΗ) =====
-bingoBtn.onclick = () => {
-  stopAuto();
-  alert("🛑 Η κλήρωση σταμάτησε! Έλεγχος BINGO.");
-};
+// Εδώ αργότερα θα δείχνει νικητή (websocket / polling)
 </script>
-
 </body>
 </html>
