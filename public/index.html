@@ -3,87 +3,98 @@
 <head>
 <meta charset="UTF-8">
 <title>BINGO TV</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
 <style>
-body {
-  background:#111;
-  color:white;
+body{
+  background:radial-gradient(circle,#ffd000,#ff7a00);
   font-family:Arial;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  padding:20px;
+  text-align:center;
+  color:#000;
 }
-#number {
-  width:260px;
-  height:260px;
+#number{
+  width:260px;height:260px;
   border-radius:50%;
   background:white;
-  color:black;
   font-size:120px;
   display:flex;
   align-items:center;
   justify-content:center;
-  margin:20px;
+  margin:20px auto;
 }
-button {
-  padding:12px 20px;
-  font-size:18px;
-  margin:5px;
-}
-#winner {
-  font-size:40px;
-  color:#00ff88;
-  margin-top:30px;
+.controls button{padding:15px 25px;font-size:18px;margin:5px}
+#drawn{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.ball{
+  width:45px;height:45px;border-radius:50%;
+  background:white;display:flex;align-items:center;justify-content:center;
+  font-weight:bold;
 }
 </style>
 </head>
+
 <body>
 
-<h1>BINGO HALL</h1>
+<h1>BINGO ΚΛΗΡΩΣΗ</h1>
 <div id="number">–</div>
 
-<div>
-  <button onclick="start()">START</button>
+<div class="controls">
+  <button onclick="manual()">MANUAL</button>
+  <button onclick="startAuto()">AUTO</button>
   <button onclick="stop()">STOP</button>
   <button onclick="reset()">RESET</button>
 </div>
 
-<div id="winner"></div>
+<div id="drawn"></div>
+
+<hr>
+<h3>Δημιουργία κουπονιού</h3>
+<input id="name" placeholder="Όνομα">
+<button onclick="createTicket()">QR</button><br>
+<canvas id="qr"></canvas>
 
 <script>
-let interval=null;
+let auto=null;
 
-async function start(){
-  await fetch("/api/start",{method:"POST"});
-  if(interval) return;
-  interval=setInterval(draw,5000);
+async function manual(){
+  const r=await fetch("/api/draw").then(r=>r.json());
+  if(r.number) show(r.number,r.drawn);
+}
+function startAuto(){
+  fetch("/api/start");
+  auto=setInterval(manual,5000);
+}
+function stop(){
+  fetch("/api/stop");
+  clearInterval(auto);
+}
+function reset(){
+  fetch("/api/reset");
+  document.getElementById("drawn").innerHTML="";
+  document.getElementById("number").innerText="–";
 }
 
-async function stop(){
-  clearInterval(interval);
-  interval=null;
-  await fetch("/api/stop",{method:"POST"});
+function show(n,arr){
+  document.getElementById("number").innerText=n;
+  const d=document.getElementById("drawn");
+  d.innerHTML="";
+  arr.forEach(x=>{
+    const b=document.createElement("div");
+    b.className="ball"; b.innerText=x;
+    d.appendChild(b);
+  });
 }
 
-async function reset(){
-  location.reload();
-  await fetch("/api/reset",{method:"POST"});
-}
+async function createTicket(){
+  const name=document.getElementById("name").value;
+  const r=await fetch("/api/ticket",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name})
+  }).then(r=>r.json());
 
-async function draw(){
-  const res=await fetch("/api/draw");
-  const data=await res.json();
-  if(data.stopped) return;
-
-  document.getElementById("number").innerText=data.number;
-
-  const w=await fetch("/api/winner").then(r=>r.json());
-  if(w.winner){
-    clearInterval(interval);
-    document.getElementById("winner").innerText=
-      `🎉 BINGO! ${w.winner.name} (#${w.winner.id})`;
-  }
+  const link=location.origin+"/ticket.html?ticketId="+r.ticketId;
+  QRCode.toCanvas(document.getElementById("qr"),link);
 }
 </script>
 </body>
