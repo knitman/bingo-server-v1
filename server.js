@@ -7,18 +7,24 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
-let drawNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
 let drawn = [];
 let tickets = {};
 let running = false;
 
-/* ===== ΚΛΗΡΩΣΗ ===== */
-app.get("/api/draw", (req, res) => {
-  if (!running || drawNumbers.length === 0) return res.json({ done: true });
+/* ================== ΚΛΗΡΩΣΗ ================== */
 
-  const i = Math.floor(Math.random() * drawNumbers.length);
-  const num = drawNumbers.splice(i, 1)[0];
+// Τραβάει αριθμό (MANUAL ή AUTO)
+app.get("/api/draw", (req, res) => {
+  if (numbers.length === 0) {
+    running = false;
+    return res.json({ done: true });
+  }
+
+  const i = Math.floor(Math.random() * numbers.length);
+  const num = numbers.splice(i, 1)[0];
   drawn.push(num);
+
   res.json({ number: num, drawn });
 });
 
@@ -33,13 +39,14 @@ app.post("/api/stop", (req, res) => {
 });
 
 app.post("/api/reset", (req, res) => {
-  drawNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+  numbers = Array.from({ length: 75 }, (_, i) => i + 1);
   drawn = [];
   running = false;
   res.json({ ok: true });
 });
 
-/* ===== ΚΟΥΠΟΝΙΑ ===== */
+/* ================== ΚΟΥΠΟΝΙΑ ================== */
+
 app.post("/api/ticket", (req, res) => {
   const { name } = req.body;
   const id = uuidv4();
@@ -55,17 +62,18 @@ app.post("/api/ticket", (req, res) => {
 });
 
 app.get("/api/ticket/:id", (req, res) => {
-  const t = tickets[req.params.id];
-  if (!t) return res.status(404).json({ error: "Not found" });
-  res.json(t);
+  const ticket = tickets[req.params.id];
+  if (!ticket) return res.status(404).json({ error: "Not found" });
+  res.json(ticket);
 });
 
-/* ===== BINGO ===== */
+/* ================== BINGO ================== */
+
 app.post("/api/bingo/:id", (req, res) => {
   running = false;
   res.json({ winner: tickets[req.params.id] });
 });
 
 app.listen(PORT, () => {
-  console.log("Bingo server running on", PORT);
+  console.log("✅ Bingo server running on port", PORT);
 });
