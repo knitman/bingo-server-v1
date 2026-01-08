@@ -2,126 +2,100 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<title>BINGO HALL + QR</title>
+<title>BINGO TV</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-<style>
-body { margin:0; font-family:Arial; background: radial-gradient(circle at top, #ffd000, #ff7a00); display:flex; flex-direction:column; align-items:center; padding:20px; }
-h1 { margin-bottom:10px; }
-#number { width:260px; height:260px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; font-size:120px; font-weight:bold; color:#000; margin-bottom:20px; box-shadow:0 0 30px rgba(0,0,0,0.3); transition: transform 0.6s; }
-.animate { transform: scale(1.5); }
-.controls { display:flex; gap:15px; margin-bottom:20px; }
-button { padding:12px 20px; font-size:16px; border:none; border-radius:10px; background:#222; color:white; cursor:pointer; }
-button:disabled { opacity:0.5; }
-#drawn { display:flex; flex-wrap:wrap; gap:8px; max-width:1000px; justify-content:center; margin-bottom:20px; }
-.drawn-number { width:50px; height:50px; border-radius:50%; background:white; border:2px solid #222; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000; }
 
-/* QR Section */
-#ticketSection { margin-top:20px; background:#fff3e0; padding:15px; border-radius:12px; width:100%; max-width:400px; text-align:center; }
-#qr { margin-top:10px; }
-input { padding:10px; font-size:16px; width:200px; text-align:center; margin-bottom:10px; }
+<style>
+body{
+  background:radial-gradient(circle,#ffd000,#ff7a00);
+  font-family:Arial;
+  text-align:center;
+  color:#000;
+}
+#number{
+  width:260px;height:260px;
+  border-radius:50%;
+  background:white;
+  font-size:120px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:20px auto;
+}
+.controls button{padding:15px 25px;font-size:18px;margin:5px}
+#drawn{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.ball{
+  width:45px;height:45px;border-radius:50%;
+  background:white;display:flex;align-items:center;justify-content:center;
+  font-weight:bold;
+}
 </style>
 </head>
+
 <body>
 
-<h1>BINGO HALL</h1>
+<h1>BINGO ΚΛΗΡΩΣΗ</h1>
 <div id="number">–</div>
 
 <div class="controls">
-  <button id="manualBtn">MANUAL</button>
-  <button id="autoBtn">AUTO</button>
-  <button id="stopBtn" disabled>STOP</button>
-  <button id="resetBtn">RESET</button>
+  <button onclick="manual()">MANUAL</button>
+  <button onclick="startAuto()">AUTO</button>
+  <button onclick="stop()">STOP</button>
+  <button onclick="reset()">RESET</button>
 </div>
 
 <div id="drawn"></div>
 
-<div id="ticketSection">
-  <h3>Δημιουργία κουπονιού</h3>
-  <input id="name" placeholder="Όνομα παίκτη">
-  <button id="createTicketBtn">ΔΗΜΙΟΥΡΓΙΑ QR</button><br>
-  <canvas id="qr"></canvas>
-</div>
+<hr>
+<h3>Δημιουργία κουπονιού</h3>
+<input id="name" placeholder="Όνομα">
+<button onclick="createTicket()">QR</button><br>
+<canvas id="qr"></canvas>
 
 <script>
-let drawnNumbers = [];
-let interval = null;
-let running = false;
+let auto=null;
 
-const numberDiv = document.getElementById("number");
-const drawnDiv = document.getElementById("drawn");
-const manualBtn = document.getElementById("manualBtn");
-const autoBtn = document.getElementById("autoBtn");
-const stopBtn = document.getElementById("stopBtn");
-const resetBtn = document.getElementById("resetBtn");
+async function manual(){
+  const r=await fetch("/api/draw").then(r=>r.json());
+  if(r.number) show(r.number,r.drawn);
+}
+function startAuto(){
+  fetch("/api/start");
+  auto=setInterval(manual,5000);
+}
+function stop(){
+  fetch("/api/stop");
+  clearInterval(auto);
+}
+function reset(){
+  fetch("/api/reset");
+  document.getElementById("drawn").innerHTML="";
+  document.getElementById("number").innerText="–";
+}
 
-const qrCanvas = document.getElementById("qr");
-const nameInput = document.getElementById("name");
-
-// ===== ΚΛΗΡΩΣΗ =====
-async function drawNumber(){
-  const res = await fetch("/api/draw");
-  const data = await res.json();
-  drawnNumbers = data.drawnNumbers;
-  if(drawnNumbers.length>0){
-    const n = drawnNumbers[drawnNumbers.length-1];
-    numberDiv.textContent = n;
-    numberDiv.classList.add("animate");
-    setTimeout(()=>numberDiv.classList.remove("animate"),600);
-  }
-  drawnDiv.innerHTML="";
-  drawnNumbers.forEach(n=>{
-    const el = document.createElement("div");
-    el.className="drawn-number"; el.textContent=n;
-    drawnDiv.appendChild(el);
+function show(n,arr){
+  document.getElementById("number").innerText=n;
+  const d=document.getElementById("drawn");
+  d.innerHTML="";
+  arr.forEach(x=>{
+    const b=document.createElement("div");
+    b.className="ball"; b.innerText=x;
+    d.appendChild(b);
   });
 }
 
-manualBtn.onclick = async ()=>{
-  if(running) return;
-  await fetch("/api/auto",{method:"POST"});
-  drawNumber();
-};
-
-autoBtn.onclick = async ()=>{
-  if(running) return;
-  running=true;
-  autoBtn.disabled=true; manualBtn.disabled=true; stopBtn.disabled=false;
-  await fetch("/api/auto",{method:"POST"});
-  interval = setInterval(drawNumber,1000);
-};
-
-stopBtn.onclick = async ()=>{
-  running=false;
-  autoBtn.disabled=false; manualBtn.disabled=false; stopBtn.disabled=true;
-  await fetch("/api/stop",{method:"POST"});
-  clearInterval(interval);
-  interval=null;
-};
-
-resetBtn.onclick = async ()=>{
-  running=false; autoBtn.disabled=false; manualBtn.disabled=false; stopBtn.disabled=true;
-  drawnNumbers=[]; drawnDiv.innerHTML=""; numberDiv.textContent="–";
-  await fetch("/api/reset",{method:"POST"});
-  clearInterval(interval); interval=null;
-};
-
-// ===== Δημιουργία κουπονιού =====
-document.getElementById("createTicketBtn").onclick = async ()=>{
-  const name = nameInput.value.trim();
-  if(!name) return alert("Βάλε όνομα");
-
-  const res = await fetch("/api/ticket",{
+async function createTicket(){
+  const name=document.getElementById("name").value;
+  const r=await fetch("/api/ticket",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name})
-  });
-  const data = await res.json();
+  }).then(r=>r.json());
 
-  // Δημιουργία QR μόνο με link για το κουπόνι
-  const link = location.origin + location.pathname + "?ticketId=" + data.ticketId;
-  QRCode.toCanvas(qrCanvas, link);
-};
+  const link=location.origin+"/ticket.html?ticketId="+r.ticketId;
+  QRCode.toCanvas(document.getElementById("qr"),link);
+}
 </script>
 </body>
 </html>
