@@ -2,13 +2,13 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<title>BINGO HALL</title>
+<title>BINGO HALL + QR</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <style>
-body { margin:0; font-family:Arial; background: radial-gradient(circle at top, #ffd000, #ff7a00); display:flex; flex-direction:column; align-items:center; padding:20px;}
+body { margin:0; font-family:Arial; background: radial-gradient(circle at top, #ffd000, #ff7a00); display:flex; flex-direction:column; align-items:center; padding:20px; }
 h1 { margin-bottom:10px; }
-#number { width:260px; height:260px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; font-size:120px; font-weight:bold; color:#000; margin-bottom:20px; box-shadow:0 0 30px rgba(0,0,0,0.3); transition: transform 0.6s;}
+#number { width:260px; height:260px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; font-size:120px; font-weight:bold; color:#000; margin-bottom:20px; box-shadow:0 0 30px rgba(0,0,0,0.3); transition: transform 0.6s; }
 .animate { transform: scale(1.5); }
 .controls { display:flex; gap:15px; margin-bottom:20px; }
 button { padding:12px 20px; font-size:16px; border:none; border-radius:10px; background:#222; color:white; cursor:pointer; }
@@ -39,14 +39,13 @@ input { padding:10px; font-size:16px; width:200px; text-align:center; margin-bot
 
 <div id="drawn"></div>
 
-<!-- Δημιουργία κουπονιού -->
 <div id="ticketSection">
   <h3>Δημιουργία κουπονιού</h3>
   <input id="name" placeholder="Όνομα παίκτη">
   <button id="createTicketBtn">ΔΗΜΙΟΥΡΓΙΑ ΚΟΥΠΟΝΙΟΥ</button><br>
   <div id="ticketGrid"></div>
   <button id="bingoBtn">BINGO!</button>
-  <div id="qr"></div>
+  <canvas id="qr"></canvas>
   <div id="result"></div>
 </div>
 
@@ -63,6 +62,12 @@ const autoBtn = document.getElementById("autoBtn");
 const stopBtn = document.getElementById("stopBtn");
 const resetBtn = document.getElementById("resetBtn");
 
+const ticketGrid = document.getElementById("ticketGrid");
+const bingoBtn = document.getElementById("bingoBtn");
+const qrCanvas = document.getElementById("qr");
+const resultDiv = document.getElementById("result");
+const nameInput = document.getElementById("name");
+
 // ===== ΚΛΗΡΩΣΗ =====
 async function drawNumber(){
   const res = await fetch("/api/draw");
@@ -74,7 +79,6 @@ async function drawNumber(){
     numberDiv.classList.add("animate");
     setTimeout(()=>numberDiv.classList.remove("animate"),600);
   }
-
   drawnDiv.innerHTML="";
   drawnNumbers.forEach(n=>{
     const el = document.createElement("div");
@@ -85,7 +89,7 @@ async function drawNumber(){
 
 manualBtn.onclick = async ()=>{
   if(running) return;
-  await fetch("/api/auto"); // draw once
+  await fetch("/api/auto",{method:"POST"});
   drawNumber();
 };
 
@@ -108,18 +112,12 @@ stopBtn.onclick = async ()=>{
 resetBtn.onclick = async ()=>{
   running=false; autoBtn.disabled=false; manualBtn.disabled=false; stopBtn.disabled=true;
   drawnNumbers=[]; drawnDiv.innerHTML=""; numberDiv.textContent="–";
-  document.getElementById("ticketGrid").innerHTML=""; document.getElementById("result").textContent="";
+  ticketGrid.innerHTML=""; resultDiv.textContent="";
   await fetch("/api/reset",{method:"POST"});
   clearInterval(interval); interval=null;
 };
 
-// ===== ΚΟΥΠΟΝΙ =====
-const ticketGrid = document.getElementById("ticketGrid");
-const bingoBtn = document.getElementById("bingoBtn");
-const qrDiv = document.getElementById("qr");
-const resultDiv = document.getElementById("result");
-const nameInput = document.getElementById("name");
-
+// ===== Δημιουργία κουπονιού =====
 document.getElementById("createTicketBtn").onclick = async ()=>{
   const name = nameInput.value.trim()||"Παίκτης";
   const res = await fetch("/api/ticket",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name})});
@@ -132,8 +130,7 @@ document.getElementById("createTicketBtn").onclick = async ()=>{
     d.onclick = ()=>d.classList.toggle("marked");
     ticketGrid.appendChild(d);
   });
-  qrDiv.innerHTML="";
-  QRCode.toCanvas(qrDiv, location.origin+"/ticket.html?ticketId="+data.ticketId);
+  QRCode.toCanvas(qrCanvas, location.origin+"?ticketId="+data.ticketId);
   resultDiv.textContent="";
 };
 
