@@ -19,13 +19,6 @@ body {
 
 h1 { margin: 10px 0; }
 
-#winner {
-  font-size: 26px;
-  font-weight: bold;
-  color: #00ff6a;
-  margin: 10px 0;
-}
-
 #number {
   width: 260px;
   height: 260px;
@@ -132,7 +125,6 @@ button:disabled { opacity: 0.5; }
 <body>
 
 <h1>BINGO ΚΛΗΡΩΣΗ</h1>
-<div id="winner"></div>
 
 <div id="number">–</div>
 
@@ -151,13 +143,13 @@ button:disabled { opacity: 0.5; }
 
   <div class="ticket-grid" id="ticket"></div>
 
-  <button class="bingo-btn" id="bingoBtn" disabled>🎉 BINGO!</button>
+  <!-- ΤΟ BINGO ΕΙΝΑΙ ΜΟΝΟ ΕΔΩ -->
+  <button class="bingo-btn" id="bingoBtn" disabled>🎉 BINGO</button>
 </div>
 
 <script>
 let interval = null;
 let running = false;
-let currentTicketId = null;
 
 const numberDiv = document.getElementById("number");
 const drawnDiv = document.getElementById("drawn");
@@ -167,9 +159,8 @@ const stopBtn = document.getElementById("stopBtn");
 const ticketDiv = document.getElementById("ticket");
 const ticketIdDiv = document.getElementById("ticketId");
 const bingoBtn = document.getElementById("bingoBtn");
-const winnerDiv = document.getElementById("winner");
 
-// ===== ΚΛΗΡΩΣΗ =====
+// ===== ΚΛΗΡΩΣΗ ΑΠΟ SERVER =====
 async function drawFromServer() {
   const res = await fetch("/api/draw");
   const data = await res.json();
@@ -192,7 +183,9 @@ async function drawFromServer() {
   });
 }
 
-manualBtn.onclick = () => { if (!running) drawFromServer(); };
+manualBtn.onclick = () => {
+  if (!running) drawFromServer();
+};
 
 autoBtn.onclick = () => {
   if (running) return;
@@ -218,11 +211,9 @@ document.getElementById("createTicket").onclick = async () => {
   const res = await fetch("/api/ticket", { method: "POST" });
   const data = await res.json();
 
-  currentTicketId = data.ticketId;
-  ticketIdDiv.innerHTML = "<b>ID:</b> " + currentTicketId;
+  ticketIdDiv.innerHTML = "<b>ID:</b> " + data.ticketId;
   ticketDiv.innerHTML = "";
   bingoBtn.disabled = false;
-  winnerDiv.textContent = "";
 
   data.numbers.forEach(n => {
     const c = document.createElement("div");
@@ -233,29 +224,10 @@ document.getElementById("createTicket").onclick = async () => {
   });
 };
 
-// ===== BINGO CHECK =====
-bingoBtn.onclick = async () => {
+// ===== BINGO BUTTON (ΣΤΑΜΑΤΑ ΚΛΗΡΩΣΗ) =====
+bingoBtn.onclick = () => {
   stopAuto();
-
-  const marked = [...document.querySelectorAll(".cell.marked")]
-    .map(c => Number(c.textContent));
-
-  const res = await fetch("/api/check", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ticketId: currentTicketId,
-      marked
-    })
-  });
-
-  const data = await res.json();
-
-  if (data.win) {
-    winnerDiv.textContent = "🏆 ΝΙΚΗΤΗΣ ΚΟΥΠΟΝΙ: " + currentTicketId;
-  } else {
-    alert("❌ Δεν είναι Bingo ακόμα!");
-  }
+  alert("🛑 Η κλήρωση σταμάτησε! Έλεγχος BINGO.");
 };
 </script>
 
