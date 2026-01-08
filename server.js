@@ -1,5 +1,4 @@
 import express from "express";
-import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,12 +8,22 @@ app.use(express.static("public"));
 
 let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
 let drawn = [];
-let tickets = {};
 let running = false;
 
-/* ================== ΚΛΗΡΩΣΗ ================== */
+/* ===== ΚΟΥΠΟΝΙΑ ===== */
+let tickets = {};
 
-// Τραβάει αριθμό (MANUAL ή AUTO)
+/* helper: τυχαίο 5ψήφιο μοναδικό ID */
+function generateTicketId() {
+  let id;
+  do {
+    id = Math.floor(10000 + Math.random() * 90000); // 10000–99999
+  } while (tickets[id]);
+  return id;
+}
+
+/* ===== ΚΛΗΡΩΣΗ ===== */
+
 app.get("/api/draw", (req, res) => {
   if (numbers.length === 0) {
     running = false;
@@ -42,14 +51,16 @@ app.post("/api/reset", (req, res) => {
   numbers = Array.from({ length: 75 }, (_, i) => i + 1);
   drawn = [];
   running = false;
+  tickets = {};
   res.json({ ok: true });
 });
 
-/* ================== ΚΟΥΠΟΝΙΑ ================== */
+/* ===== ΔΗΜΙΟΥΡΓΙΑ ΚΟΥΠΟΝΙΟΥ ===== */
 
 app.post("/api/ticket", (req, res) => {
   const { name } = req.body;
-  const id = uuidv4();
+
+  const ticketId = generateTicketId();
 
   let nums = [];
   while (nums.length < 15) {
@@ -57,8 +68,13 @@ app.post("/api/ticket", (req, res) => {
     if (!nums.includes(n)) nums.push(n);
   }
 
-  tickets[id] = { id, name, nums };
-  res.json({ ticketId: id });
+  tickets[ticketId] = {
+    id: ticketId,
+    name,
+    nums
+  };
+
+  res.json({ ticketId });
 });
 
 app.get("/api/ticket/:id", (req, res) => {
@@ -67,7 +83,7 @@ app.get("/api/ticket/:id", (req, res) => {
   res.json(ticket);
 });
 
-/* ================== BINGO ================== */
+/* ===== BINGO ===== */
 
 app.post("/api/bingo/:id", (req, res) => {
   running = false;
