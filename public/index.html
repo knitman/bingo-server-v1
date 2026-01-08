@@ -15,13 +15,10 @@ button { padding:12px 20px; font-size:16px; border:none; border-radius:10px; bac
 button:disabled { opacity:0.5; }
 #drawn { display:flex; flex-wrap:wrap; gap:8px; max-width:1000px; justify-content:center; margin-bottom:20px; }
 .drawn-number { width:50px; height:50px; border-radius:50%; background:white; border:2px solid #222; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000; }
-#ticketSection { margin-top:20px; background:#fff3e0; padding:15px; border-radius:12px; width:100%; max-width:600px; text-align:center; }
-#ticketGrid { display:grid; grid-template-columns:repeat(5,60px); gap:10px; justify-content:center; margin:10px auto; }
-.cell { width:60px; height:60px; border-radius:50%; background:#eee; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; }
-.cell.marked { background:#4caf50; color:white; }
-#bingoBtn { margin-top:10px; padding:10px 20px; font-size:18px; border:none; border-radius:10px; background:#ff5252; color:white; cursor:pointer; }
+
+/* QR Section */
+#ticketSection { margin-top:20px; background:#fff3e0; padding:15px; border-radius:12px; width:100%; max-width:400px; text-align:center; }
 #qr { margin-top:10px; }
-#result { margin-top:10px; font-size:18px; font-weight:bold; }
 input { padding:10px; font-size:16px; width:200px; text-align:center; margin-bottom:10px; }
 </style>
 </head>
@@ -42,18 +39,14 @@ input { padding:10px; font-size:16px; width:200px; text-align:center; margin-bot
 <div id="ticketSection">
   <h3>Δημιουργία κουπονιού</h3>
   <input id="name" placeholder="Όνομα παίκτη">
-  <button id="createTicketBtn">ΔΗΜΙΟΥΡΓΙΑ ΚΟΥΠΟΝΙΟΥ</button><br>
-  <div id="ticketGrid"></div>
-  <button id="bingoBtn">BINGO!</button>
+  <button id="createTicketBtn">ΔΗΜΙΟΥΡΓΙΑ QR</button><br>
   <canvas id="qr"></canvas>
-  <div id="result"></div>
 </div>
 
 <script>
 let drawnNumbers = [];
 let interval = null;
 let running = false;
-let currentTicket = null;
 
 const numberDiv = document.getElementById("number");
 const drawnDiv = document.getElementById("drawn");
@@ -62,10 +55,7 @@ const autoBtn = document.getElementById("autoBtn");
 const stopBtn = document.getElementById("stopBtn");
 const resetBtn = document.getElementById("resetBtn");
 
-const ticketGrid = document.getElementById("ticketGrid");
-const bingoBtn = document.getElementById("bingoBtn");
 const qrCanvas = document.getElementById("qr");
-const resultDiv = document.getElementById("result");
 const nameInput = document.getElementById("name");
 
 // ===== ΚΛΗΡΩΣΗ =====
@@ -112,46 +102,26 @@ stopBtn.onclick = async ()=>{
 resetBtn.onclick = async ()=>{
   running=false; autoBtn.disabled=false; manualBtn.disabled=false; stopBtn.disabled=true;
   drawnNumbers=[]; drawnDiv.innerHTML=""; numberDiv.textContent="–";
-  ticketGrid.innerHTML=""; resultDiv.textContent="";
   await fetch("/api/reset",{method:"POST"});
   clearInterval(interval); interval=null;
 };
 
 // ===== Δημιουργία κουπονιού =====
 document.getElementById("createTicketBtn").onclick = async ()=>{
-  const name = nameInput.value.trim()||"Παίκτης";
-  const res = await fetch("/api/ticket",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name})});
-  const data = await res.json();
-  currentTicket = data;
-  ticketGrid.innerHTML="";
-  data.numbers.forEach(n=>{
-    const d = document.createElement("div");
-    d.className="cell"; d.textContent=n;
-    d.onclick = ()=>d.classList.toggle("marked");
-    ticketGrid.appendChild(d);
-  });
-  QRCode.toCanvas(qrCanvas, location.origin+"?ticketId="+data.ticketId);
-  resultDiv.textContent="";
-};
+  const name = nameInput.value.trim();
+  if(!name) return alert("Βάλε όνομα");
 
-// ===== BINGO =====
-bingoBtn.onclick = async ()=>{
-  if(!currentTicket) return alert("Δημιούργησε πρώτα κουπόνι");
-  const res = await fetch("/api/bingo",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ticketId:currentTicket.ticketId})});
+  const res = await fetch("/api/ticket",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name})
+  });
   const data = await res.json();
-  if(data.valid){
-    resultDiv.textContent = `ΣΥΓΧΑΡΗΤΗΡΙΑ! ΚΕΡΔΙΣΕ Ο ${data.name}!`;
-    resultDiv.style.color="green";
-    await fetch("/api/stop",{method:"POST"});
-    running=false;
-    autoBtn.disabled=false; manualBtn.disabled=false; stopBtn.disabled=true;
-    clearInterval(interval); interval=null;
-  }else{
-    resultDiv.textContent = "Δεν έχετε ακόμα όλα τα νούμερα. Συνέχισε!";
-    resultDiv.style.color="red";
-  }
+
+  // Δημιουργία QR μόνο με link για το κουπόνι
+  const link = location.origin + location.pathname + "?ticketId=" + data.ticketId;
+  QRCode.toCanvas(qrCanvas, link);
 };
 </script>
-
 </body>
 </html>
