@@ -1,7 +1,8 @@
-const express = require("express");
+import express from "express";
+import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
+
 const app = express();
-const cors = require("cors");
-const { v4: uuidv4 } = require("uuid");
 
 app.use(cors());
 app.use(express.json());
@@ -22,38 +23,31 @@ function drawNumber() {
 }
 
 // ====== API ======
-
-// TV ζητά αριθμό / ιστορικό
 app.get("/api/draw", (req,res)=>{
   res.json({drawnNumbers});
 });
 
-// Παίκτης ζητά νέο κουπόνι
 app.post("/api/ticket", (req,res)=>{
   const ticketId = uuidv4();
   let nums = [];
   while(nums.length<15){
-    let n = Math.floor(Math.random()*75)+1;
+    let n=Math.floor(Math.random()*75)+1;
     if(!nums.includes(n)) nums.push(n);
   }
   tickets[ticketId] = {numbers: nums, bingo:false};
   res.json({ticketId, numbers: nums});
 });
 
-// Παίκτης πατά BINGO
 app.post("/api/bingo", (req,res)=>{
   const {ticketId} = req.body;
   const ticket = tickets[ticketId];
   if(!ticket) return res.json({valid:false, msg:"Κουπόνι δεν βρέθηκε"});
-
-  // Έλεγχος αν όλα τα νούμερα στο drawnNumbers
   const won = ticket.numbers.every(n => drawnNumbers.includes(n));
   ticket.bingo = won;
-  if(won) autoRunning=false; // σταμάτα την κλήρωση
+  if(won) autoRunning=false;
   res.json({valid:won, numbers: ticket.numbers});
 });
 
-// Auto draw (TV)
 app.post("/api/auto", (req,res)=>{
   if(autoRunning) return res.json({running:true});
   autoRunning=true;
@@ -65,7 +59,6 @@ app.post("/api/auto", (req,res)=>{
   res.json({started:true});
 });
 
-// Stop auto
 app.post("/api/stop", (req,res)=>{
   autoRunning=false;
   res.json({stopped:true});
