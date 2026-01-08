@@ -5,10 +5,11 @@
 <title>BINGO TV</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family:Arial; display:flex; flex-direction:column; align-items:center; padding:20px; background:#ffd000; }
-#number { width:180px; height:180px; border-radius:50%; background:white; font-size:100px; display:flex; align-items:center; justify-content:center; margin:10px; }
-.drawn { display:flex; flex-wrap:wrap; gap:5px; max-width:500px; }
+body { font-family:Arial; display:flex; flex-direction:column; align-items:center; padding:20px; background: radial-gradient(circle at top, #ffd000, #ff7a00);}
+#number { width:200px; height:200px; border-radius:50%; background:white; font-size:120px; display:flex; align-items:center; justify-content:center; margin:10px; transition: transform 0.5s;}
+.drawn { display:flex; flex-wrap:wrap; gap:5px; max-width:500px;}
 .drawn div { width:40px; height:40px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+.animate { transform: scale(1.5); }
 #winner { margin-top:20px; font-size:24px; color:#ff0000; }
 </style>
 </head>
@@ -19,21 +20,24 @@ body { font-family:Arial; display:flex; flex-direction:column; align-items:cente
 <div id="winner"></div>
 
 <script>
-async function fetchDrawn() {
+let lastNumber = null;
+async function fetchDrawn(){
   const res = await fetch("/api/draw");
   const data = await res.json();
   const drawnDiv = document.getElementById("drawn");
-  drawnDiv.innerHTML = "";
-  let last = "–";
+  drawnDiv.innerHTML="";
   data.drawnNumbers.forEach(n=>{
     const d = document.createElement("div"); d.textContent=n; drawnDiv.appendChild(d);
-    last = n;
+    lastNumber = n;
   });
-  document.getElementById("number").textContent = last;
+  const numberDiv = document.getElementById("number");
+  if(lastNumber){
+    numberDiv.textContent = lastNumber;
+    numberDiv.classList.add("animate");
+    setTimeout(()=>numberDiv.classList.remove("animate"),600);
+  }
 }
-setInterval(fetchDrawn,2000);
-
-// Εδώ αργότερα θα δείχνει νικητή (websocket / polling)
+setInterval(fetchDrawn,1000);
 </script>
 </body>
 </html>
