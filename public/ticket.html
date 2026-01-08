@@ -2,137 +2,76 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<title>BINGO Κουπόνι</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<title>Κουπόνι Bingo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #fff3e0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
+body{
+  font-family:Arial;
+  text-align:center;
+  padding:20px;
 }
-
-h1 { margin-bottom: 5px; }
-#ticketId {
-  font-size: 14px;
-  margin-bottom: 15px;
-  color: #555;
+#grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:10px;
+  margin:20px 0;
 }
-
-#ticket {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
+.cell{
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:#eee;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
 }
-
-.cell {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: #eee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.cell.marked {
-  background: #ff5252;
-  color: white;
-}
-
-button {
-  padding: 12px 24px;
-  font-size: 18px;
-  border: none;
-  border-radius: 12px;
-  background: #222;
-  color: white;
-  cursor: pointer;
-}
-
-#result {
-  margin-top: 15px;
-  font-size: 18px;
-  font-weight: bold;
-}
+.marked{background:#ff5252;color:white;}
+button{padding:12px 20px;font-size:18px;}
 </style>
 </head>
-
 <body>
 
-<h1>Κουπόνι Bingo</h1>
-<div id="ticketId"></div>
-
-<div id="ticket"></div>
-
-<button id="bingoBtn">🎉 BINGO 🎉</button>
-
-<div id="result"></div>
+<h2 id="title"></h2>
+<div id="grid"></div>
+<button onclick="bingo()">BINGO!</button>
 
 <script>
-const params = new URLSearchParams(location.search);
-const ticketId = params.get("ticketId");
+const params=new URLSearchParams(location.search);
+const id=params.get("id");
 
-if (!ticketId) {
-  alert("Μη έγκυρο κουπόνι");
-  throw "No ticketId";
+document.getElementById("title").innerText="Κουπόνι #" + id;
+
+let marked=[];
+
+async function load(){
+  const res=await fetch("/api/ticket-data?id="+id);
 }
 
-document.getElementById("ticketId").innerText = "ID Κουπονιού: " + ticketId;
+const numbers=JSON.parse(atob(params.get("nums")));
 
-let ticketNumbers = [];
+const grid=document.getElementById("grid");
+numbers.forEach(n=>{
+  const d=document.createElement("div");
+  d.className="cell";
+  d.innerText=n;
+  d.onclick=()=>{
+    d.classList.toggle("marked");
+    if(marked.includes(n)) marked=marked.filter(x=>x!==n);
+    else marked.push(n);
+  };
+  grid.appendChild(d);
+});
 
-async function loadTicket() {
-  const res = await fetch("/api/ticket/" + ticketId);
-  if (!res.ok) {
-    alert("Το κουπόνι δεν βρέθηκε");
-    return;
-  }
-
-  const data = await res.json();
-  ticketNumbers = data.nums;
-
-  const ticketDiv = document.getElementById("ticket");
-  ticketDiv.innerHTML = "";
-
-  ticketNumbers.forEach(n => {
-    const d = document.createElement("div");
-    d.className = "cell";
-    d.textContent = n;
-    d.onclick = () => d.classList.toggle("marked");
-    ticketDiv.appendChild(d);
+async function bingo(){
+  const res=await fetch("/api/bingo",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ id, marked })
   });
+  const data=await res.json();
+  alert(data.win ? "🎉 BINGO!" : "❌ Άκυρο");
 }
-
-loadTicket();
-
-document.getElementById("bingoBtn").onclick = async () => {
-  const marked = [...document.querySelectorAll(".cell.marked")]
-    .map(el => parseInt(el.textContent));
-
-  const res = await fetch("/api/bingo/" + ticketId, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ marked })
-  });
-
-  const data = await res.json();
-
-  if (data.winner) {
-    document.getElementById("result").innerText = "🏆 ΚΕΡΔΙΣΕΣ!";
-  } else {
-    document.getElementById("result").innerText = "❌ Δεν είναι ακόμα BINGO";
-  }
-};
 </script>
-
 </body>
 </html>
