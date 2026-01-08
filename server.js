@@ -3,41 +3,52 @@ import cors from "cors";
 import { v4 as uuidv4 } from "uuid";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// ====== ΔΕΔΟΜΕΝΑ ======
+// ===== Δεδομένα =====
 let drawnNumbers = [];
 let tickets = {};
-let autoRunning = false;
+let autoRunning = true;
 
-// ====== ΚΛΗΡΩΣΗ ======
+// ===== Κλήρωση =====
 function drawNumber() {
-  const remaining = Array.from({length:75}, (_,i)=>i+1).filter(n => !drawnNumbers.includes(n));
-  if (remaining.length===0) return null;
+  const remaining = Array.from({length:75}, (_,i)=>i+1).filter(n=>!drawnNumbers.includes(n));
+  if(remaining.length===0) return null;
   const num = remaining[Math.floor(Math.random()*remaining.length)];
   drawnNumbers.push(num);
   return num;
 }
 
-// ====== API ======
+// Auto draw κάθε 5 δευτερόλεπτα
+setInterval(()=>{
+  if(autoRunning){
+    const n = drawNumber();
+    if(!n) autoRunning=false;
+  }
+},5000);
+
+// ===== API =====
+
+// TV: παίρνει κληρωμένους αριθμούς
 app.get("/api/draw", (req,res)=>{
   res.json({drawnNumbers});
 });
 
+// Παίκτης: νέο κουπόνι
 app.post("/api/ticket", (req,res)=>{
   const ticketId = uuidv4();
-  let nums = [];
+  let nums=[];
   while(nums.length<15){
-    let n=Math.floor(Math.random()*75)+1;
+    const n=Math.floor(Math.random()*75)+1;
     if(!nums.includes(n)) nums.push(n);
   }
-  tickets[ticketId] = {numbers: nums, bingo:false};
+  tickets[ticketId]={numbers: nums, bingo:false};
   res.json({ticketId, numbers: nums});
 });
 
+// Παίκτης: πατά BINGO
 app.post("/api/bingo", (req,res)=>{
   const {ticketId} = req.body;
   const ticket = tickets[ticketId];
@@ -48,17 +59,7 @@ app.post("/api/bingo", (req,res)=>{
   res.json({valid:won, numbers: ticket.numbers});
 });
 
-app.post("/api/auto", (req,res)=>{
-  if(autoRunning) return res.json({running:true});
-  autoRunning=true;
-  const interval = setInterval(()=>{
-    if(!autoRunning) return clearInterval(interval);
-    const num = drawNumber();
-    if(!num) autoRunning=false;
-  },5000);
-  res.json({started:true});
-});
-
+// Stop auto draw
 app.post("/api/stop", (req,res)=>{
   autoRunning=false;
   res.json({stopped:true});
