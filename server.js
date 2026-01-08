@@ -24,7 +24,7 @@ function drawNumber() {
 
 // ===== API =====
 
-// TV: πάρτε κληρωμένους αριθμούς
+// Πάρε κληρωμένους αριθμούς
 app.get("/api/draw", (req,res)=>res.json({drawnNumbers}));
 
 // Δημιουργία κουπονιού
