@@ -1,42 +1,46 @@
 import express from "express";
+import { randomInt } from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
-let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
-let drawn = [];
+// ===== GAME STATE =====
+let availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+let drawnNumbers = [];
 let running = false;
+let winner = null;
 
-/* ===== ΚΟΥΠΟΝΙΑ ===== */
-let tickets = {};
+const tickets = new Map(); // id -> { name, numbers }
 
-/* helper: τυχαίο 5ψήφιο μοναδικό ID */
-function generateTicketId() {
-  let id;
-  do {
-    id = Math.floor(10000 + Math.random() * 90000); // 10000–99999
-  } while (tickets[id]);
-  return id;
+// ===== HELPERS =====
+function generateTicketID() {
+  return randomInt(10000, 99999).toString(); // 5ψήφιο random
 }
 
-/* ===== ΚΛΗΡΩΣΗ ===== */
+// ===== API =====
 
+// Κλήρωση αριθμού
 app.get("/api/draw", (req, res) => {
-  if (numbers.length === 0) {
-    running = false;
-    return res.json({ done: true });
+  if (!running || availableNumbers.length === 0 || winner) {
+    return res.json({ stopped: true });
   }
 
-  const i = Math.floor(Math.random() * numbers.length);
-  const num = numbers.splice(i, 1)[0];
-  drawn.push(num);
+  const index = Math.floor(Math.random() * availableNumbers.length);
+  const number = availableNumbers.splice(index, 1)[0];
+  drawnNumbers.push(number);
 
-  res.json({ number: num, drawn });
+  res.json({ number, drawnNumbers });
 });
 
+// Start / Stop
 app.post("/api/start", (req, res) => {
   running = true;
   res.json({ ok: true });
@@ -47,49 +51,54 @@ app.post("/api/stop", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/reset", (req, res) => {
-  numbers = Array.from({ length: 75 }, (_, i) => i + 1);
-  drawn = [];
-  running = false;
-  tickets = {};
-  res.json({ ok: true });
-});
-
-/* ===== ΔΗΜΙΟΥΡΓΙΑ ΚΟΥΠΟΝΙΟΥ ===== */
-
+// Δημιουργία κουπονιού
 app.post("/api/ticket", (req, res) => {
   const { name } = req.body;
-
-  const ticketId = generateTicketId();
+  if (!name) return res.status(400).json({ error: "No name" });
 
   let nums = [];
   while (nums.length < 15) {
-    let n = Math.floor(Math.random() * 75) + 1;
+    const n = randomInt(1, 76);
     if (!nums.includes(n)) nums.push(n);
   }
 
-  tickets[ticketId] = {
-    id: ticketId,
-    name,
-    nums
-  };
+  const id = generateTicketID();
+  tickets.set(id, { name, numbers: nums });
 
-  res.json({ ticketId });
+  res.json({ id });
 });
 
-app.get("/api/ticket/:id", (req, res) => {
-  const ticket = tickets[req.params.id];
-  if (!ticket) return res.status(404).json({ error: "Not found" });
-  res.json(ticket);
+// Έλεγχος BINGO
+app.post("/api/bingo", (req, res) => {
+  const { id, marked } = req.body;
+  if (!tickets.has(id)) return res.json({ win: false });
+
+  const valid = marked.every(n => drawnNumbers.includes(n));
+
+  if (valid && !winner) {
+    winner = { id, name: tickets.get(id).name };
+    running = false;
+  }
+
+  res.json({ win: valid, winner });
 });
 
-/* ===== BINGO ===== */
+// Κατάσταση νικητή
+app.get("/api/winner", (req, res) => {
+  res.json({ winner });
+});
 
-app.post("/api/bingo/:id", (req, res) => {
+// Reset
+app.post("/api/reset", (req, res) => {
+  availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+  drawnNumbers = [];
+  tickets.clear();
   running = false;
-  res.json({ winner: tickets[req.params.id] });
+  winner = null;
+  res.json({ ok: true });
 });
 
+// ===== START =====
 app.listen(PORT, () => {
-  console.log("✅ Bingo server running on port", PORT);
+  console.log("Bingo server running on port", PORT);
 });
