@@ -2,81 +2,67 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<title>BINGO Ticket</title>
+<title>BINGO Κουπόνι</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family:Arial; display:flex; flex-direction:column; align-items:center; padding:20px; background:#fffae5;}
-h1 { margin-bottom:10px; text-align:center; }
-#ticketGrid { display:grid; grid-template-columns: repeat(5, 60px); gap:10px; margin-top:20px; }
-.cell { width:60px; height:60px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; }
-.cell.marked { background:#4caf50; color:white; }
-#bingoBtn { margin-top:20px; padding:10px 20px; font-size:18px; border:none; border-radius:10px; background:#ff5252; color:white; cursor:pointer; }
-#result { margin-top:15px; font-size:20px; font-weight:bold; }
+body { margin:0; font-family:Arial; display:flex; flex-direction:column; align-items:center; background:#fff3e0; padding:20px; }
+h1 { margin-bottom:15px; text-align:center; }
+#ticket { display:grid; grid-template-columns: repeat(5,1fr); gap:10px; margin-bottom:20px; }
+.cell { width:60px; height:60px; border-radius:50%; background:#eee; display:flex; justify-content:center; align-items:center; font-size:20px; font-weight:bold; cursor:pointer; }
+.cell.marked { background:#ff5252; color:white; }
+button { padding:10px 20px; font-size:16px; border:none; border-radius:10px; background:#222; color:white; cursor:pointer; }
 </style>
 </head>
 <body>
+
 <h1>Το Κουπόνι Σου</h1>
-<div id="ticketGrid"></div>
+<div id="ticket"></div>
 <button id="bingoBtn">BINGO!</button>
-<div id="result"></div>
+<div id="result" style="margin-top:20px;font-size:18px;font-weight:bold;"></div>
 
 <script>
+// Παίρνουμε το ticketId από το URL
 const params = new URLSearchParams(location.search);
 const ticketId = params.get("ticketId");
+if(!ticketId){ alert("Λανθασμένο κουπόνι!"); throw "No ticketId"; }
 
-if(!ticketId){
-  document.getElementById("ticketGrid").innerHTML="<p>Σκανάρετε QR για να πάρετε το κουπόνι.</p>";
-}
+const ticketDiv = document.getElementById("ticket");
+const resultDiv = document.getElementById("result");
+let ticketNumbers = [];
 
-async function loadTicket(){
-  const res = await fetch("/api/ticket?ticketId="+ticketId);
-  let data;
-  try{
-    data = await res.json();
-  }catch(e){
-    document.getElementById("ticketGrid").innerHTML="<p>Ανεπιτυχής φόρτωση κουπονιού.</p>"; 
-    return;
-  }
+// Φόρτωση κουπονιού από server
+async function loadTicket() {
+  const res = await fetch("/api/getTicket?ticketId="+ticketId);
+  if(res.status!==200){ alert("Το κουπόνι δεν βρέθηκε"); return; }
+  const data = await res.json();
+  ticketNumbers = data.numbers;
 
-  // Αν είναι νέο request, δημιουργούμε τυχαίο κουπόνι
-  if(!data.numbers){
-    const createRes = await fetch("/api/ticket", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({})
-    });
-    data = await createRes.json();
-  }
-
-  const grid = document.getElementById("ticketGrid");
-  grid.innerHTML="";
-  data.numbers.forEach(n=>{
-    const d = document.createElement("div");
-    d.className="cell"; d.textContent=n;
-    d.onclick=()=>d.classList.toggle("marked");
-    grid.appendChild(d);
+  ticketNumbers.forEach(n=>{
+    const div = document.createElement("div");
+    div.className="cell";
+    div.textContent=n;
+    div.onclick = ()=>div.classList.toggle("marked");
+    ticketDiv.appendChild(div);
   });
-
-  window.currentTicketId = data.ticketId;
 }
 
 loadTicket();
 
-// Κουμπί BINGO
+// Έλεγχος BINGO
 document.getElementById("bingoBtn").onclick = async ()=>{
-  const res = await fetch("/api/bingo", {
+  const marked = Array.from(document.querySelectorAll(".cell.marked")).map(c=>parseInt(c.textContent));
+  const res = await fetch("/api/checkBingo",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ticketId:window.currentTicketId})
+    body: JSON.stringify({ticketId, marked})
   });
   const data = await res.json();
-  const resultDiv = document.getElementById("result");
-  if(data.valid){
-    resultDiv.textContent="ΣΥΓΧΑΡΗΤΗΡΙΑ! ΚΕΡΔΙΣΑΤΕ!";
-    resultDiv.style.color="green";
-  }else{
-    resultDiv.textContent="Δεν έχετε ακόμα όλα τα νούμερα. Συνέχισε!";
-    resultDiv.style.color="red";
+  if(data.winner){
+    resultDiv.textContent = `Συγχαρητήρια! Κερδίσατε!`;
+    alert("Κερδισμένο κουπόνι! Η κλήρωση σταματάει!");
+    await fetch("/api/stop",{method:"POST"});
+  } else {
+    resultDiv.textContent = "Δεν είναι BINGO ακόμα.";
   }
 };
 </script>
