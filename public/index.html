@@ -12,6 +12,8 @@ body{
   font-family:Arial;
   text-align:center;
   color:#000;
+  margin:0;
+  padding:0;
 }
 
 /* Μεγάλη μπάλα 4K */
@@ -26,6 +28,7 @@ body{
   justify-content:center;
   margin:20px auto;
   transition: transform 0.3s ease;
+  box-shadow:0 10px 40px rgba(0,0,0,0.3);
 }
 
 /* Zoom animation */
@@ -33,12 +36,89 @@ body{
   transform: scale(1.25);
 }
 
-.controls button{
-  padding:15px 25px;
-  font-size:22px;
-  margin:5px;
+/* Glass panel */
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin: 25px auto;
+  padding: 25px 40px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px);
+  border-radius: 30px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
 }
 
+/* Premium curved buttons */
+.controls button {
+  padding: 18px 36px;
+  font-size: 26px;
+  margin: 8px;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: bold;
+  color: white;
+  transition: all 0.25s ease;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ripple effect */
+.controls button::after {
+  content:"";
+  position:absolute;
+  width:0;
+  height:0;
+  background:rgba(255,255,255,0.5);
+  border-radius:50%;
+  transform:translate(-50%, -50%);
+  top:var(--y);
+  left:var(--x);
+  transition:width 0.4s ease, height 0.4s ease;
+}
+.controls button:active::after {
+  width:200px;
+  height:200px;
+}
+
+/* Press animation */
+.controls button:active {
+  transform: scale(0.92);
+}
+
+/* AUTO = πράσινο */
+#btnAuto {
+  background: linear-gradient(135deg, #00c853, #00e676);
+}
+#btnAuto:hover {
+  transform: scale(1.08);
+  box-shadow: 0 8px 22px rgba(0,200,83,0.6);
+}
+
+/* STOP = κόκκινο */
+#btnStop {
+  background: linear-gradient(135deg, #d50000, #ff1744);
+}
+#btnStop:hover {
+  transform: scale(1.08);
+  box-shadow: 0 8px 22px rgba(213,0,0,0.6);
+}
+
+/* RESET = μπλε */
+#btnReset {
+  background: linear-gradient(135deg, #2962ff, #448aff);
+}
+#btnReset:hover {
+  transform: scale(1.08);
+  box-shadow: 0 8px 22px rgba(41,98,255,0.6);
+}
+
+/* Drawn numbers */
 #drawn{
   display:flex;
   flex-wrap:wrap;
@@ -57,8 +137,10 @@ body{
   justify-content:center;
   font-weight:bold;
   font-size:32px;
+  box-shadow:0 5px 15px rgba(0,0,0,0.2);
 }
 
+/* Ήχος */
 audio { display:none; }
 
 /* Πίνακας παικτών */
@@ -69,6 +151,7 @@ audio { display:none; }
   background:rgba(255,255,255,0.8);
   padding:15px;
   border-radius:12px;
+  box-shadow:0 5px 20px rgba(0,0,0,0.2);
 }
 #playersContainer h2{
   margin-top:0;
@@ -101,9 +184,9 @@ audio { display:none; }
 <audio id="sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
 
 <div class="controls">
-  <button onclick="startAuto()">AUTO</button>
-  <button onclick="stopAuto()">STOP</button>
-  <button onclick="resetGame()">RESET</button>
+  <button id="btnAuto" onclick="startAuto()">▶️ AUTO</button>
+  <button id="btnStop" onclick="stopAuto()">⏹️ STOP</button>
+  <button id="btnReset" onclick="resetGame()">🔄 RESET</button>
 </div>
 
 <div id="drawn"></div>
@@ -119,9 +202,7 @@ audio { display:none; }
         <th>Κατάσταση</th>
       </tr>
     </thead>
-    <tbody id="playersBody">
-      <!-- Θα γεμίσει από JS -->
-    </tbody>
+    <tbody id="playersBody"></tbody>
   </table>
 </div>
 
@@ -134,6 +215,15 @@ audio { display:none; }
 <script>
 let auto = null;
 
+/* Ripple effect handler */
+document.querySelectorAll(".controls button").forEach(btn => {
+  btn.addEventListener("click", e => {
+    const rect = btn.getBoundingClientRect();
+    btn.style.setProperty("--x", e.clientX - rect.left + "px");
+    btn.style.setProperty("--y", e.clientY - rect.top + "px");
+  });
+});
+
 /* === WebSocket === */
 const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
 const ws = new WebSocket(wsProtocol + location.host);
@@ -142,7 +232,7 @@ ws.onmessage = (msg) => {
   const data = JSON.parse(msg.data);
 
   if (data.type === "state") {
-    if (data.drawn && data.drawn.length > 0) {
+    if (data.drawn?.length > 0) {
       const last = data.drawn[data.drawn.length - 1];
       show(last, data.drawn);
     }
@@ -151,15 +241,15 @@ ws.onmessage = (msg) => {
 
   if (data.type === "number") {
     show(data.number, data.drawn);
-    if (data.players) renderPlayers(data.players);
+    renderPlayers(data.players);
   }
 
   if (data.type === "players") {
-    if (data.players) renderPlayers(data.players);
+    renderPlayers(data.players);
   }
 
   if (data.type === "bingo") {
-    alert("🎉 " + (data.name || "Κάποιος") + " φώναξε BINGO! " + (data.winner ? "Έγκυρο!" : "Δεν είναι έγκυρο."));
+    alert("🎉 " + data.name + " φώναξε BINGO! " + (data.winner ? "Έγκυρο!" : "Μη έγκυρο."));
   }
 
   if (data.type === "reset") {
@@ -171,8 +261,7 @@ ws.onmessage = (msg) => {
 
 /* === AUTO DRAW === */
 async function autoDraw(){
-  // Δεν καλούμε show εδώ, το WebSocket θα ενημερώσει όλους
-  await fetch("/api/draw").then(r => r.json());
+  await fetch("/api/draw");
 }
 
 function startAuto(){
@@ -186,24 +275,20 @@ function stopAuto(){
   clearInterval(auto);
 }
 
-/* === RESET === */
 function resetGame(){
   fetch("/api/reset", { method: "POST" });
 }
 
-/* === UPDATE UI ΚΛΗΡΩΣΗΣ === */
+/* === UPDATE UI === */
 function show(n, arr){
   const num = document.getElementById("number");
   num.innerText = n;
 
-  // Zoom animation
   num.classList.add("zoom");
   setTimeout(() => num.classList.remove("zoom"), 300);
 
-  // Play sound
   document.getElementById("sound").play();
 
-  // Update drawn numbers
   const d = document.getElementById("drawn");
   d.innerHTML = "";
   arr.forEach(x=>{
@@ -223,22 +308,12 @@ function renderPlayers(players){
     const tr = document.createElement("tr");
     if (p.winner) tr.classList.add("winnerRow");
 
-    const tdName = document.createElement("td");
-    tdName.textContent = p.name;
-
-    const tdHits = document.createElement("td");
-    tdHits.textContent = `${p.hits}/${p.total}`;
-
-    const tdProg = document.createElement("td");
-    tdProg.textContent = p.progress + "%";
-
-    const tdStatus = document.createElement("td");
-    tdStatus.textContent = p.winner ? "Bingo!" : "Παίζει";
-
-    tr.appendChild(tdName);
-    tr.appendChild(tdHits);
-    tr.appendChild(tdProg);
-    tr.appendChild(tdStatus);
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${p.hits}/${p.total}</td>
+      <td>${p.progress}%</td>
+      <td>${p.winner ? "Bingo!" : "Παίζει"}</td>
+    `;
 
     tbody.appendChild(tr);
   });
