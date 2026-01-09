@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
+/* ===== ΚΑΤΑΣΤΑΣΗ ΠΑΙΧΝΙΔΙΟΥ ===== */
 let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
 let drawn = [];
 let running = false;
@@ -17,7 +18,7 @@ let tickets = {};
 function generateTicketId() {
   let id;
   do {
-    id = Math.floor(10000 + Math.random() * 90000); // 10000–99999
+    id = Math.floor(10000 + Math.random() * 90000);
   } while (tickets[id]);
   return id;
 }
@@ -25,6 +26,10 @@ function generateTicketId() {
 /* ===== ΚΛΗΡΩΣΗ ===== */
 
 app.get("/api/draw", (req, res) => {
+  if (!running) {
+    return res.status(400).json({ error: "Game not running" });
+  }
+
   if (numbers.length === 0) {
     running = false;
     return res.json({ done: true });
@@ -60,6 +65,10 @@ app.post("/api/reset", (req, res) => {
 app.post("/api/ticket", (req, res) => {
   const { name } = req.body;
 
+  if (!name) {
+    return res.status(400).json({ error: "Name required" });
+  }
+
   const ticketId = generateTicketId();
 
   let nums = [];
@@ -79,16 +88,32 @@ app.post("/api/ticket", (req, res) => {
 
 app.get("/api/ticket/:id", (req, res) => {
   const ticket = tickets[req.params.id];
-  if (!ticket) return res.status(404).json({ error: "Not found" });
+  if (!ticket) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
   res.json(ticket);
 });
 
-/* ===== BINGO ===== */
+/* ===== BINGO (LEGIT ΕΛΕΓΧΟΣ) ===== */
 
 app.post("/api/bingo/:id", (req, res) => {
-  running = false;
-  res.json({ winner: tickets[req.params.id] });
+  const ticket = tickets[req.params.id];
+  if (!ticket) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  // ΟΛΟΙ οι αριθμοί του κουπονιού πρέπει να έχουν κληρωθεί
+  const isBingo = ticket.nums.every(n => drawn.includes(n));
+
+  if (isBingo) {
+    running = false;
+    return res.json({ winner: ticket });
+  }
+
+  res.json({ winner: null });
 });
+
+/* ===== SERVER ===== */
 
 app.listen(PORT, () => {
   console.log("✅ Bingo server running on port", PORT);
