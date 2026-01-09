@@ -41,8 +41,8 @@ body{
 <div class="controls">
   <button onclick="manual()">MANUAL</button>
   <button onclick="startAuto()">AUTO</button>
-  <button onclick="stop()">STOP</button>
-  <button onclick="reset()">RESET</button>
+  <button onclick="stopAuto()">STOP</button>
+  <button onclick="resetGame()">RESET</button>
 </div>
 
 <div id="drawn"></div>
@@ -54,48 +54,59 @@ body{
 <canvas id="qr"></canvas>
 
 <script>
-let auto=null;
+let auto = null;
 
+/* === MANUAL DRAW === */
 async function manual(){
-  const r=await fetch("/api/draw").then(r=>r.json());
-  if(r.number) show(r.number,r.drawn);
+  const r = await fetch("/api/draw").then(r => r.json());
+  if(r.number) show(r.number, r.drawn);
 }
+
+/* === AUTO DRAW === */
 function startAuto(){
-  fetch("/api/start");
-  auto=setInterval(manual,5000);
+  fetch("/api/start", { method: "POST" });
+  auto = setInterval(manual, 5000);
 }
-function stop(){
-  fetch("/api/stop");
+
+function stopAuto(){
+  fetch("/api/stop", { method: "POST" });
   clearInterval(auto);
 }
-function reset(){
-  fetch("/api/reset");
-  document.getElementById("drawn").innerHTML="";
-  document.getElementById("number").innerText="–";
+
+/* === RESET === */
+function resetGame(){
+  fetch("/api/reset", { method: "POST" });
+  document.getElementById("drawn").innerHTML = "";
+  document.getElementById("number").innerText = "–";
 }
 
-function show(n,arr){
-  document.getElementById("number").innerText=n;
-  const d=document.getElementById("drawn");
-  d.innerHTML="";
+/* === UPDATE UI === */
+function show(n, arr){
+  document.getElementById("number").innerText = n;
+  const d = document.getElementById("drawn");
+  d.innerHTML = "";
   arr.forEach(x=>{
     const b=document.createElement("div");
-    b.className="ball"; b.innerText=x;
+    b.className="ball"; 
+    b.innerText=x;
     d.appendChild(b);
   });
 }
 
+/* === CREATE TICKET === */
 async function createTicket(){
-  const name=document.getElementById("name").value;
-  const r=await fetch("/api/ticket",{
+  const name = document.getElementById("name").value;
+
+  const r = await fetch("/api/ticket",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name})
   }).then(r=>r.json());
 
-  const link=location.origin+"/ticket.html?ticketId="+r.ticketId;
-  QRCode.toCanvas(document.getElementById("qr"),link);
+  const link = location.origin + "/ticket.html?ticketId=" + r.ticketId;
+  QRCode.toCanvas(document.getElementById("qr"), link);
 }
 </script>
+
 </body>
 </html>
