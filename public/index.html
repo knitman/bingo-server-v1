@@ -59,8 +59,36 @@ body{
   font-size:32px;
 }
 
-/* Ήχος */
 audio { display:none; }
+
+/* Πίνακας παικτών */
+#playersContainer{
+  max-width:900px;
+  margin:20px auto;
+  text-align:left;
+  background:rgba(255,255,255,0.8);
+  padding:15px;
+  border-radius:12px;
+}
+#playersContainer h2{
+  margin-top:0;
+}
+#playersTable{
+  width:100%;
+  border-collapse:collapse;
+  font-size:18px;
+}
+#playersTable th, #playersTable td{
+  padding:6px 8px;
+  border-bottom:1px solid #ccc;
+}
+#playersTable th{
+  background:#f0f0f0;
+}
+.winnerRow{
+  background:#c8e6c9;
+  font-weight:bold;
+}
 </style>
 </head>
 
@@ -68,10 +96,8 @@ audio { display:none; }
 
 <h1>BINGO ΚΛΗΡΩΣΗ</h1>
 
-<!-- Μεγάλη μπάλα -->
 <div id="number">–</div>
 
-<!-- Ήχος -->
 <audio id="sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
 
 <div class="controls">
@@ -81,6 +107,23 @@ audio { display:none; }
 </div>
 
 <div id="drawn"></div>
+
+<div id="playersContainer">
+  <h2>Πρόοδος παικτών</h2>
+  <table id="playersTable">
+    <thead>
+      <tr>
+        <th>Παίκτης</th>
+        <th>Επιτυχίες</th>
+        <th>Ποσοστό</th>
+        <th>Κατάσταση</th>
+      </tr>
+    </thead>
+    <tbody id="playersBody">
+      <!-- Θα γεμίσει από JS -->
+    </tbody>
+  </table>
+</div>
 
 <hr>
 <h3>Δημιουργία κουπονιού</h3>
@@ -92,28 +135,49 @@ audio { display:none; }
 let auto = null;
 
 /* === WebSocket === */
-const ws = new WebSocket("ws://" + location.host);
+const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+const ws = new WebSocket(wsProtocol + location.host);
 
 ws.onmessage = (msg) => {
   const data = JSON.parse(msg.data);
 
+  if (data.type === "state") {
+    if (data.drawn && data.drawn.length > 0) {
+      const last = data.drawn[data.drawn.length - 1];
+      show(last, data.drawn);
+    }
+    if (data.players) renderPlayers(data.players);
+  }
+
   if (data.type === "number") {
     show(data.number, data.drawn);
+    if (data.players) renderPlayers(data.players);
+  }
+
+  if (data.type === "players") {
+    if (data.players) renderPlayers(data.players);
   }
 
   if (data.type === "bingo") {
-    alert("🎉 Κάποιος φώναξε BINGO: " + data.name);
+    alert("🎉 " + (data.name || "Κάποιος") + " φώναξε BINGO! " + (data.winner ? "Έγκυρο!" : "Δεν είναι έγκυρο."));
+  }
+
+  if (data.type === "reset") {
+    document.getElementById("drawn").innerHTML = "";
+    document.getElementById("number").innerText = "–";
+    renderPlayers([]);
   }
 };
 
 /* === AUTO DRAW === */
 async function autoDraw(){
-  const r = await fetch("/api/draw").then(r => r.json());
-  if(r.number) show(r.number, r.drawn);
+  // Δεν καλούμε show εδώ, το WebSocket θα ενημερώσει όλους
+  await fetch("/api/draw").then(r => r.json());
 }
 
 function startAuto(){
   fetch("/api/start", { method: "POST" });
+  if (auto) clearInterval(auto);
   auto = setInterval(autoDraw, 5000);
 }
 
@@ -125,11 +189,9 @@ function stopAuto(){
 /* === RESET === */
 function resetGame(){
   fetch("/api/reset", { method: "POST" });
-  document.getElementById("drawn").innerHTML = "";
-  document.getElementById("number").innerText = "–";
 }
 
-/* === UPDATE UI === */
+/* === UPDATE UI ΚΛΗΡΩΣΗΣ === */
 function show(n, arr){
   const num = document.getElementById("number");
   num.innerText = n;
@@ -149,6 +211,36 @@ function show(n, arr){
     b.className="ball"; 
     b.innerText=x;
     d.appendChild(b);
+  });
+}
+
+/* === ΠΙΝΑΚΑΣ ΠΑΙΚΤΩΝ === */
+function renderPlayers(players){
+  const tbody = document.getElementById("playersBody");
+  tbody.innerHTML = "";
+
+  players.forEach(p => {
+    const tr = document.createElement("tr");
+    if (p.winner) tr.classList.add("winnerRow");
+
+    const tdName = document.createElement("td");
+    tdName.textContent = p.name;
+
+    const tdHits = document.createElement("td");
+    tdHits.textContent = `${p.hits}/${p.total}`;
+
+    const tdProg = document.createElement("td");
+    tdProg.textContent = p.progress + "%";
+
+    const tdStatus = document.createElement("td");
+    tdStatus.textContent = p.winner ? "Bingo!" : "Παίζει";
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdHits);
+    tr.appendChild(tdProg);
+    tr.appendChild(tdStatus);
+
+    tbody.appendChild(tr);
   });
 }
 
