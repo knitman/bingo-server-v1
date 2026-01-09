@@ -13,30 +13,66 @@ body{
   text-align:center;
   color:#000;
 }
+
+/* Μεγάλη μπάλα 4K */
 #number{
-  width:260px;height:260px;
+  width:400px;
+  height:400px;
   border-radius:50%;
   background:white;
-  font-size:120px;
+  font-size:200px;
   display:flex;
   align-items:center;
   justify-content:center;
   margin:20px auto;
+  transition: transform 0.3s ease;
 }
-.controls button{padding:15px 25px;font-size:18px;margin:5px}
-#drawn{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+
+/* Zoom animation */
+#number.zoom {
+  transform: scale(1.25);
+}
+
+.controls button{
+  padding:15px 25px;
+  font-size:22px;
+  margin:5px;
+}
+
+#drawn{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+}
+
+/* Μικρές μπάλες 4K */
 .ball{
-  width:45px;height:45px;border-radius:50%;
-  background:white;display:flex;align-items:center;justify-content:center;
+  width:90px;
+  height:90px;
+  border-radius:50%;
+  background:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   font-weight:bold;
+  font-size:32px;
 }
+
+/* Ήχος */
+audio { display:none; }
 </style>
 </head>
 
 <body>
 
 <h1>BINGO ΚΛΗΡΩΣΗ</h1>
+
+<!-- Μεγάλη μπάλα -->
 <div id="number">–</div>
+
+<!-- Ήχος -->
+<audio id="sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
 
 <div class="controls">
   <button onclick="startAuto()">AUTO</button>
@@ -54,6 +90,21 @@ body{
 
 <script>
 let auto = null;
+
+/* === WebSocket === */
+const ws = new WebSocket("ws://" + location.host);
+
+ws.onmessage = (msg) => {
+  const data = JSON.parse(msg.data);
+
+  if (data.type === "number") {
+    show(data.number, data.drawn);
+  }
+
+  if (data.type === "bingo") {
+    alert("🎉 Κάποιος φώναξε BINGO: " + data.name);
+  }
+};
 
 /* === AUTO DRAW === */
 async function autoDraw(){
@@ -80,7 +131,17 @@ function resetGame(){
 
 /* === UPDATE UI === */
 function show(n, arr){
-  document.getElementById("number").innerText = n;
+  const num = document.getElementById("number");
+  num.innerText = n;
+
+  // Zoom animation
+  num.classList.add("zoom");
+  setTimeout(() => num.classList.remove("zoom"), 300);
+
+  // Play sound
+  document.getElementById("sound").play();
+
+  // Update drawn numbers
   const d = document.getElementById("drawn");
   d.innerHTML = "";
   arr.forEach(x=>{
