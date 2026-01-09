@@ -13,6 +13,7 @@ app.use(express.static("public"));
 let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
 let drawn = [];
 let running = false;
+let gameOver = false;
 
 let tickets = {};
 
@@ -45,6 +46,10 @@ function getPlayersProgress() {
 /* ===== HTTP API ===== */
 
 app.get("/api/draw", (req, res) => {
+  if (gameOver) {
+    return res.json({ done: true, gameOver: true });
+  }
+
   if (numbers.length === 0) {
     running = false;
     broadcast({ type: "done" });
@@ -68,6 +73,9 @@ app.get("/api/draw", (req, res) => {
 });
 
 app.post("/api/start", (req, res) => {
+  if (gameOver) {
+    return res.json({ ok: false, gameOver: true });
+  }
   running = true;
   res.json({ ok: true });
 });
@@ -81,6 +89,7 @@ app.post("/api/reset", (req, res) => {
   numbers = Array.from({ length: 75 }, (_, i) => i + 1);
   drawn = [];
   running = false;
+  gameOver = false;
 
   Object.values(tickets).forEach(t => (t.winner = false));
 
@@ -121,23 +130,30 @@ app.get("/api/ticket/:id", (req, res) => {
   res.json(ticket);
 });
 
+/* BINGO: σταματάει το παιχνίδι τελείως αν είναι έγκυρο */
 app.post("/api/bingo/:id", (req, res) => {
   const ticket = tickets[req.params.id];
   if (!ticket) return res.json({ winner: false });
 
-  const { marked } = req.body;
+  const { marked } = req.body || {};
 
-  const validMarks = marked.every(n => drawn.includes(n));
+  const validMarks =
+    Array.isArray(marked) && marked.every(n => drawn.includes(n));
+
   const fullMatch = ticket.nums.every(n => drawn.includes(n));
 
   const winner = validMarks && fullMatch;
 
-  if (winner) ticket.winner = true;
+  if (winner) {
+    ticket.winner = true;
+    running = false;
+    gameOver = true;
+  }
 
   broadcast({
     type: "bingo",
     id: ticket.id,
-    name: ticket.name,
+    name: ticket.name || ("Παίκτης " + ticket.id),
     winner
   });
 
@@ -145,6 +161,10 @@ app.post("/api/bingo/:id", (req, res) => {
     type: "players",
     players: getPlayersProgress()
   });
+
+  if (winner) {
+    broadcast({ type: "gameover" });
+  }
 
   res.json({ winner });
 });
@@ -163,7 +183,8 @@ wss.on("connection", ws => {
     JSON.stringify({
       type: "state",
       drawn,
-      players: getPlayersProgress()
+      players: getPlayersProgress(),
+      gameOver
     })
   );
 
