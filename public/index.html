@@ -39,7 +39,6 @@ body{
 <div id="number">–</div>
 
 <div class="controls">
-  <button onclick="manual()">MANUAL</button>
   <button onclick="startAuto()">AUTO</button>
   <button onclick="stopAuto()">STOP</button>
   <button onclick="resetGame()">RESET</button>
@@ -56,16 +55,15 @@ body{
 <script>
 let auto = null;
 
-/* === MANUAL DRAW === */
-async function manual(){
+/* === AUTO DRAW === */
+async function autoDraw(){
   const r = await fetch("/api/draw").then(r => r.json());
   if(r.number) show(r.number, r.drawn);
 }
 
-/* === AUTO DRAW === */
 function startAuto(){
   fetch("/api/start", { method: "POST" });
-  auto = setInterval(manual, 5000);
+  auto = setInterval(autoDraw, 5000);
 }
 
 function stopAuto(){
