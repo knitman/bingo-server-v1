@@ -8,47 +8,42 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
-/* ===== ΚΑΤΑΣΤΑΣΗ ΠΑΙΧΝΙΔΙΟΥ ===== */
+/* ===== GAME STATE ===== */
 
-// Αριθμοί 1–75
 let numbers = Array.from({ length: 75 }, (_, i) => i + 1);
-// Όσοι έχουν ήδη κληρωθεί
 let drawn = [];
-// Αν “τρέχει” αυτόματη κλήρωση (λογική flag, το interval είναι client-side)
 let running = false;
 
-// Κουπόνια: ticketId → { id, name, nums:[], winner:boolean }
 let tickets = {};
 
-/* helper: τυχαίο 5ψήφιο μοναδικό ID */
 function generateTicketId() {
   let id;
   do {
-    id = Math.floor(10000 + Math.random() * 90000); // 10000–99999
+    id = Math.floor(10000 + Math.random() * 90000);
   } while (tickets[id]);
   return id;
 }
 
-// Υπολογισμός προόδου παικτών
 function getPlayersProgress() {
-  return Object.values(tickets).map(t => {
-    const hits = t.nums.filter(n => drawn.includes(n)).length;
-    const total = t.nums.length;
-    const progress = total > 0 ? Math.round((hits / total) * 100) : 0;
-    return {
-      id: t.id,
-      name: t.name || ("Παίκτης " + t.id),
-      hits,
-      total,
-      progress,
-      winner: !!t.winner
-    };
-  }).sort((a, b) => b.progress - a.progress);
+  return Object.values(tickets)
+    .map(t => {
+      const hits = t.nums.filter(n => drawn.includes(n)).length;
+      const total = t.nums.length;
+      const progress = Math.round((hits / total) * 100);
+      return {
+        id: t.id,
+        name: t.name || ("Παίκτης " + t.id),
+        hits,
+        total,
+        progress,
+        winner: !!t.winner
+      };
+    })
+    .sort((a, b) => b.progress - a.progress);
 }
 
 /* ===== HTTP API ===== */
 
-/* Κλήρωση επόμενου αριθμού */
 app.get("/api/draw", (req, res) => {
   if (numbers.length === 0) {
     running = false;
@@ -62,7 +57,6 @@ app.get("/api/draw", (req, res) => {
 
   const players = getPlayersProgress();
 
-  // Broadcast σε όλους τους WebSocket clients
   broadcast({
     type: "number",
     number: num,
@@ -73,34 +67,28 @@ app.get("/api/draw", (req, res) => {
   res.json({ number: num, drawn, players });
 });
 
-/* Start (flag μόνο, το auto είναι client-side) */
 app.post("/api/start", (req, res) => {
   running = true;
   res.json({ ok: true });
 });
 
-/* Stop */
 app.post("/api/stop", (req, res) => {
   running = false;
   res.json({ ok: true });
 });
 
-/* Reset */
 app.post("/api/reset", (req, res) => {
   numbers = Array.from({ length: 75 }, (_, i) => i + 1);
   drawn = [];
   running = false;
-  // Κρατάμε τα tickets, απλά ακυρώνουμε νικητές
-  Object.values(tickets).forEach(t => t.winner = false);
 
-  broadcast({
-    type: "reset"
-  });
+  Object.values(tickets).forEach(t => (t.winner = false));
+
+  broadcast({ type: "reset" });
 
   res.json({ ok: true });
 });
 
-/* Δημιουργία κουπονιού */
 app.post("/api/ticket", (req, res) => {
   const { name } = req.body;
 
@@ -119,7 +107,6 @@ app.post("/api/ticket", (req, res) => {
     winner: false
   };
 
-  // Ενημέρωση TV για νέο παίκτη
   broadcast({
     type: "players",
     players: getPlayersProgress()
@@ -128,52 +115,41 @@ app.post("/api/ticket", (req, res) => {
   res.json({ ticketId });
 });
 
-/* Λήψη στοιχείων κουπονιού */
 app.get("/api/ticket/:id", (req, res) => {
   const ticket = tickets[req.params.id];
   if (!ticket) return res.status(404).json({ error: "Not found" });
-  res.json({ id: ticket.id, name: ticket.name, nums: ticket.nums });
+  res.json(ticket);
 });
 
-/* Bingo αίτημα από παίκτη */
 app.post("/api/bingo/:id", (req, res) => {
   const ticket = tickets[req.params.id];
   if (!ticket) return res.json({ winner: false });
 
   const { marked } = req.body;
 
-  // Έλεγχος: όλα τα marked μέσα στα drawn
-  const isValidMarks = Array.isArray(marked)
-    && marked.every(n => drawn.includes(n));
+  const validMarks = marked.every(n => drawn.includes(n));
+  const fullMatch = ticket.nums.every(n => drawn.includes(n));
 
-  // Και εδώ ορίζουμε ότι "Bingo" = όλα τα νούμερα του ticket υπάρχουν στα drawn
-  const allTicketDrawn = ticket.nums.every(n => drawn.includes(n));
+  const winner = validMarks && fullMatch;
 
-  const realWinner = isValidMarks && allTicketDrawn;
+  if (winner) ticket.winner = true;
 
-  if (realWinner) {
-    ticket.winner = true;
-    running = false;
-  }
-
-  // Broadcast σε όλους ότι κάποιος φώναξε Bingo
   broadcast({
     type: "bingo",
     id: ticket.id,
-    name: ticket.name || ("Παίκτης " + ticket.id),
-    winner: realWinner
+    name: ticket.name,
+    winner
   });
 
-  // Ενημέρωση προόδου
   broadcast({
     type: "players",
     players: getPlayersProgress()
   });
 
-  res.json({ winner: realWinner });
+  res.json({ winner });
 });
 
-/* ===== WebSocket Server ===== */
+/* ===== WEBSOCKETS ===== */
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -183,24 +159,21 @@ const clients = new Set();
 wss.on("connection", ws => {
   clients.add(ws);
 
-  // Στέλνουμε τρέχουσα κατάσταση με το καλησπέρα
-  ws.send(JSON.stringify({
-    type: "state",
-    drawn,
-    players: getPlayersProgress()
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "state",
+      drawn,
+      players: getPlayersProgress()
+    })
+  );
 
-  ws.on("close", () => {
-    clients.delete(ws);
-  });
+  ws.on("close", () => clients.delete(ws));
 });
 
 function broadcast(obj) {
   const msg = JSON.stringify(obj);
   for (const ws of clients) {
-    if (ws.readyState === 1) {
-      ws.send(msg);
-    }
+    if (ws.readyState === 1) ws.send(msg);
   }
 }
 
