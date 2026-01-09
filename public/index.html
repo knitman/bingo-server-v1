@@ -68,6 +68,14 @@ body{
   overflow: hidden;
 }
 
+/* Disabled state όταν gameOver */
+.controls button:disabled {
+  background: #777 !important;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 /* Ripple effect */
 .controls button::after {
   content:"";
@@ -95,7 +103,7 @@ body{
 #btnAuto {
   background: linear-gradient(135deg, #00c853, #00e676);
 }
-#btnAuto:hover {
+#btnAuto:hover:not(:disabled) {
   transform: scale(1.08);
   box-shadow: 0 8px 22px rgba(0,200,83,0.6);
 }
@@ -104,7 +112,7 @@ body{
 #btnStop {
   background: linear-gradient(135deg, #d50000, #ff1744);
 }
-#btnStop:hover {
+#btnStop:hover:not(:disabled) {
   transform: scale(1.08);
   box-shadow: 0 8px 22px rgba(213,0,0,0.6);
 }
@@ -113,12 +121,11 @@ body{
 #btnReset {
   background: linear-gradient(135deg, #2962ff, #448aff);
 }
-#btnReset:hover {
+#btnReset:hover:not(:disabled) {
   transform: scale(1.08);
   box-shadow: 0 8px 22px rgba(41,98,255,0.6);
 }
 
-/* Drawn numbers */
 #drawn{
   display:flex;
   flex-wrap:wrap;
@@ -140,7 +147,7 @@ body{
   box-shadow:0 5px 15px rgba(0,0,0,0.2);
 }
 
-/* Ήχος */
+/* Ήχοι */
 audio { display:none; }
 
 /* Πίνακας παικτών */
@@ -172,6 +179,51 @@ audio { display:none; }
   background:#c8e6c9;
   font-weight:bold;
 }
+
+/* Firework / glow όταν παίκτης είναι κοντά σε Bingo */
+.almostRow {
+  position: relative;
+  animation: pulseRow 1s infinite;
+  background: #fff8e1;
+}
+@keyframes pulseRow {
+  0% { box-shadow: 0 0 0 rgba(255,215,0,0.0); }
+  50% { box-shadow: 0 0 20px rgba(255,215,0,0.9); }
+  100% { box-shadow: 0 0 0 rgba(255,215,0,0.0); }
+}
+
+/* Firework sparkles */
+.almostRow::before,
+.almostRow::after {
+  content: "✨";
+  position:absolute;
+  top:-10px;
+  font-size:18px;
+}
+.almostRow::before {
+  left:-10px;
+}
+.almostRow::after {
+  right:-10px;
+}
+
+/* Progress bar */
+.progOuter {
+  width:100%;
+  height:14px;
+  background:#ddd;
+  border-radius:7px;
+  overflow:hidden;
+}
+.progInner {
+  height:100%;
+  width:0%;
+  background:#4caf50;
+  transition:width 0.3s ease, background 0.3s ease;
+}
+.progInner.near {
+  background:#ff5252;
+}
 </style>
 </head>
 
@@ -181,7 +233,10 @@ audio { display:none; }
 
 <div id="number">–</div>
 
-<audio id="sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+<!-- Ήχοι -->
+<audio id="soundNumber" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+<audio id="soundNear"   src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+<audio id="soundBingo"  src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <div class="controls">
   <button id="btnAuto" onclick="startAuto()">▶️ AUTO</button>
@@ -198,7 +253,7 @@ audio { display:none; }
       <tr>
         <th>Παίκτης</th>
         <th>Επιτυχίες</th>
-        <th>Ποσοστό</th>
+        <th>Πρόοδος</th>
         <th>Κατάσταση</th>
       </tr>
     </thead>
@@ -214,8 +269,10 @@ audio { display:none; }
 
 <script>
 let auto = null;
+let gameOver = false;
+let lastNearIds = new Set();
 
-/* Ripple effect handler */
+/* Ripple effect */
 document.querySelectorAll(".controls button").forEach(btn => {
   btn.addEventListener("click", e => {
     const rect = btn.getBoundingClientRect();
@@ -232,6 +289,8 @@ ws.onmessage = (msg) => {
   const data = JSON.parse(msg.data);
 
   if (data.type === "state") {
+    gameOver = !!data.gameOver;
+    updateControls();
     if (data.drawn?.length > 0) {
       const last = data.drawn[data.drawn.length - 1];
       show(last, data.drawn);
@@ -240,31 +299,69 @@ ws.onmessage = (msg) => {
   }
 
   if (data.type === "number") {
-    show(data.number, data.drawn);
-    renderPlayers(data.players);
+    if (!gameOver) show(data.number, data.drawn);
+    if (data.players) renderPlayers(data.players);
   }
 
   if (data.type === "players") {
-    renderPlayers(data.players);
+    if (data.players) renderPlayers(data.players);
   }
 
   if (data.type === "bingo") {
-    alert("🎉 " + data.name + " φώναξε BINGO! " + (data.winner ? "Έγκυρο!" : "Μη έγκυρο."));
+    if (data.winner) {
+      gameOver = true;
+      updateControls();
+      stopAuto();
+      document.getElementById("soundBingo").play();
+      alert("🏆 " + data.name + " έκανε BINGO! Τέλος παιχνιδιού.");
+    } else {
+      alert("❌ " + data.name + " δήλωσε BINGO αλλά δεν είναι έγκυρο.");
+    }
+  }
+
+  if (data.type === "gameover") {
+    gameOver = true;
+    updateControls();
+    stopAuto();
   }
 
   if (data.type === "reset") {
+    drawn = [];
+    gameOver = false;
+    updateControls();
     document.getElementById("drawn").innerHTML = "";
     document.getElementById("number").innerText = "–";
     renderPlayers([]);
   }
 };
 
+function updateControls() {
+  const autoBtn = document.getElementById("btnAuto");
+  const stopBtn = document.getElementById("btnStop");
+  const resetBtn = document.getElementById("btnReset");
+
+  if (gameOver) {
+    autoBtn.disabled = true;
+    stopBtn.disabled = true;
+  } else {
+    autoBtn.disabled = false;
+    stopBtn.disabled = false;
+  }
+  // RESET πάντα επιτρέπεται
+  resetBtn.disabled = false;
+}
+
 /* === AUTO DRAW === */
 async function autoDraw(){
+  if (gameOver) {
+    stopAuto();
+    return;
+  }
   await fetch("/api/draw");
 }
 
 function startAuto(){
+  if (gameOver) return;
   fetch("/api/start", { method: "POST" });
   if (auto) clearInterval(auto);
   auto = setInterval(autoDraw, 5000);
@@ -272,7 +369,10 @@ function startAuto(){
 
 function stopAuto(){
   fetch("/api/stop", { method: "POST" });
-  clearInterval(auto);
+  if (auto) {
+    clearInterval(auto);
+    auto = null;
+  }
 }
 
 function resetGame(){
@@ -287,7 +387,7 @@ function show(n, arr){
   num.classList.add("zoom");
   setTimeout(() => num.classList.remove("zoom"), 300);
 
-  document.getElementById("sound").play();
+  document.getElementById("soundNumber").play();
 
   const d = document.getElementById("drawn");
   d.innerHTML = "";
@@ -299,24 +399,63 @@ function show(n, arr){
   });
 }
 
-/* === ΠΙΝΑΚΑΣ ΠΑΙΚΤΩΝ === */
+/* === PLAYERS TABLE + NEAR-BINGO ANIMATION === */
 function renderPlayers(players){
   const tbody = document.getElementById("playersBody");
   tbody.innerHTML = "";
 
+  const newNearIds = new Set();
+  const NEAR_THRESHOLD = 80;
+
   players.forEach(p => {
     const tr = document.createElement("tr");
-    if (p.winner) tr.classList.add("winnerRow");
 
-    tr.innerHTML = `
-      <td>${p.name}</td>
-      <td>${p.hits}/${p.total}</td>
-      <td>${p.progress}%</td>
-      <td>${p.winner ? "Bingo!" : "Παίζει"}</td>
-    `;
+    if (p.winner) {
+      tr.classList.add("winnerRow");
+    } else if (p.progress >= NEAR_THRESHOLD) {
+      tr.classList.add("almostRow");
+      newNearIds.add(p.id);
+    }
+
+    const tdName = document.createElement("td");
+    tdName.textContent = p.name;
+
+    const tdHits = document.createElement("td");
+    tdHits.textContent = `${p.hits}/${p.total}`;
+
+    const tdProg = document.createElement("td");
+    const progOuter = document.createElement("div");
+    progOuter.className = "progOuter";
+    const progInner = document.createElement("div");
+    progInner.className = "progInner";
+    progInner.style.width = p.progress + "%";
+    if (p.progress >= NEAR_THRESHOLD && !p.winner) {
+      progInner.classList.add("near");
+    }
+    progOuter.appendChild(progInner);
+    tdProg.appendChild(progOuter);
+
+    const tdStatus = document.createElement("td");
+    tdStatus.textContent = p.winner ? "Bingo!" : "Παίζει";
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdHits);
+    tr.appendChild(tdProg);
+    tr.appendChild(tdStatus);
 
     tbody.appendChild(tr);
   });
+
+  // Αν κάποιος ΜΟΛΙΣ μπήκε στη near-bingo ζώνη → ήχος
+  let playNearSound = false;
+  newNearIds.forEach(id => {
+    if (!lastNearIds.has(id)) playNearSound = true;
+  });
+  if (playNearSound && newNearIds.size > 0) {
+    document.getElementById("soundNear").play();
+  }
+
+  lastNearIds = newNearIds;
 }
 
 /* === CREATE TICKET === */
