@@ -93,7 +93,6 @@ button:hover {
 <div id="result"></div>
 
 <script>
-/* === GET TICKET ID === */
 const params = new URLSearchParams(location.search);
 const ticketId = params.get("ticketId");
 
@@ -106,7 +105,6 @@ document.getElementById("ticketId").innerText = "ID Κουπονιού: " + tick
 
 let ticketNumbers = [];
 
-/* === LOAD TICKET FROM SERVER === */
 async function loadTicket() {
   const res = await fetch("/api/ticket/" + ticketId);
   if (!res.ok) {
@@ -131,7 +129,6 @@ async function loadTicket() {
 
 loadTicket();
 
-/* === SEND BINGO REQUEST === */
 document.getElementById("bingoBtn").onclick = async () => {
   const marked = [...document.querySelectorAll(".cell.marked")]
     .map(el => parseInt(el.textContent));
