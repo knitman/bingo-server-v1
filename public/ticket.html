@@ -127,7 +127,7 @@ document.getElementById("bingoBtn").onclick = async () => {
   const data = await res.json();
 
   if (data.winner) {
-    document.getElementById("result").innerText = "🏆 ΚΕΡΔΙΣΕΣ!";
+    document.getElementById("result").innerText = "🏆 ΚΕΡΔΙΣΕΣ! Περιμένετε επιβεβαίωση από την οθόνη.";
   } else {
     document.getElementById("result").innerText = "❌ Δεν είναι ακόμα BINGO";
   }
